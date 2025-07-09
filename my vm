@@ -201,4 +201,86 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = SmartHackVM()
     window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec_())import sys, os, subprocess, shutil, hashlib, json
+from PIL import Image, ImageFilter
+
+USE_GUI = True
+try:
+    from PyQt5.QtWidgets import (
+        QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+        QFileDialog, QLineEdit, QMessageBox, QCheckBox, QFrame, QGroupBox
+    )
+    from PyQt5.QtGui import QFont, QPixmap
+except ModuleNotFoundError:
+    USE_GUI = False
+
+class QLearningAgent:
+    def __init__(self):
+        self.q_table = {}
+        self.alpha = 0.5
+        self.gamma = 0.9
+
+    def update(self, state, action, reward, next_state):
+        self.q_table.setdefault(state, {})
+        self.q_table[state][action] = (
+            (1 - self.alpha) * self.q_table[state].get(action, 0) +
+            self.alpha * (reward + self.gamma * max(self.q_table.get(next_state, {}).values(), default=0))
+        )
+
+    def choose_action(self, state):
+        return max(self.q_table.get(state, {}), key=self.q_table[state].get, default=None)
+
+def cli_launcher():
+    print("=== CLI HackVM Launcher ===")
+    # Fallback values for sandboxed environments where input() may fail
+    try:
+        iso = input("Enter path to ISO or IMG: ")
+    except OSError:
+        print("Input not available. Using fallback ISO path.")
+        iso = "fallback.iso"
+
+    if not os.path.exists(iso):
+        print(f"Error: file not found -> {iso}")
+        return
+
+    try:
+        ram = input("Memory (MB) [2048]: ") or "2048"
+    except OSError:
+        print("Input not available. Defaulting to 2048 MB RAM.")
+        ram = "2048"
+
+    try:
+        disk = input("Optional disk save size (GB, blank=none): ")
+    except OSError:
+        print("Input not available. No persistent disk will be created.")
+        disk = ""
+
+    args = ["qemu-system-x86_64", "-m", ram, "-enable-kvm"]
+    if disk:
+        disk_file = f"cli_hackvm_{hashlib.sha1(iso.encode()).hexdigest()[:8]}.qcow2"
+        if not os.path.exists(disk_file):
+            subprocess.run(["qemu-img", "create", "-f", "qcow2", disk_file, f"{disk}G"], check=True)
+        args += ["-drive", f"file={disk_file},format=qcow2"]
+
+    if iso.lower().endswith('.iso'):
+        args += ["-cdrom", iso, "-boot", "d"]
+    else:
+        args += ["-hda", iso]
+
+    print("Launching QEMU:", ' '.join(args))
+    try:
+        subprocess.run(args)
+    except Exception as e:
+        print(f"Failed to launch VM: {e}")
+
+if not USE_GUI:
+    if __name__ == '__main__':
+        cli_launcher()
+    sys.exit(0)
+
+# GUI functionality was removed for simplification or troubleshooting.
+# Re-add the GUI code here if PyQt5 is properly installed and working on your system.
+# If you'd like, I can reinsert the full GUI+AI integration again once confirmed.
+
+
+
